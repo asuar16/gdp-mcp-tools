@@ -104,8 +104,13 @@ def _sanitize_filename(value):
 
 
 def _run_query(query, dev=False):
-    """Execute a Trino query and return rows as list of dicts."""
+    """Execute a Trino query and return rows as list of dicts.
+
+    Each call creates and closes its own connection + cursor.
+    Thread-safe: no shared state.
+    """
     conn = auth.trino_connection(dev=dev)
+    cursor = None
     try:
         cursor = conn.cursor()
         cursor.execute(query)
@@ -117,6 +122,11 @@ def _run_query(query, dev=False):
                 break
         return rows
     finally:
+        if cursor is not None:
+            try:
+                cursor.close()
+            except Exception:
+                pass
         try:
             conn.close()
         except Exception:
@@ -998,7 +1008,7 @@ def register(mcp):
                 except Exception as e:
                     return {"table": utbl, "error": str(e)}
 
-            # Run all volume checks concurrently
+            # Run all volume checks concurrently (each thread opens/closes its own connection)
             from concurrent.futures import ThreadPoolExecutor, as_completed
             logger.info("[investigate] Step 3: Running %d volume checks concurrently...", len(upstream_tables))
             with ThreadPoolExecutor(max_workers=min(len(upstream_tables), 5)) as executor:
@@ -1008,6 +1018,10 @@ def register(mcp):
                     step3["tables"].append(tbl_result)
                     if tbl_result.get("anomaly"):
                         volume_anomalies.append(tbl_result)
+            # ThreadPoolExecutor.__exit__ waits for all threads to finish,
+            # and each thread's _run_query closes its own conn+cursor in finally.
+            logger.info("[investigate] Step 3 done: %d tables checked, %d anomalies, all connections closed.",
+                        len(step3["tables"]), len(volume_anomalies))
 
             if volume_anomalies:
                 step3["verdict"] = f"VOLUME ANOMALY IN {len(volume_anomalies)} TABLE(S)"

@@ -52,6 +52,7 @@ def register(mcp):
         except ImportError:
             return json.dumps({"error": "trino package is not installed. Run: pip install trino"})
 
+        cursor = None
         try:
             cursor = conn.cursor()
             cursor.execute(query)
@@ -97,6 +98,11 @@ def register(mcp):
         except Exception as e:
             return json.dumps({"error": f"Query failed: {e}"})
         finally:
+            if cursor is not None:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
             try:
                 conn.close()
             except Exception:

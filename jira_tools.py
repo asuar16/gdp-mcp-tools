@@ -31,6 +31,18 @@ def _api(method, path, api_version=2, **kwargs):
     return resp.json()
 
 
+def _resolve_user(query):
+    """Resolve a user query (email, name) to a Jira Cloud accountId."""
+    session = auth.jira_session()
+    url = f"{auth.jira_url()}{API_V2}/user/search"
+    resp = session.get(url, params={"query": query}, timeout=15)
+    resp.raise_for_status()
+    users = resp.json()
+    if users:
+        return users[0].get("accountId")
+    return None
+
+
 def _format_issue(issue):
     """Format a Jira issue into a concise summary dict."""
     fields = issue.get("fields", {})
@@ -185,7 +197,9 @@ def register(mcp):
         description: str = "",
         priority: str = "",
         assignee: str = "",
+        reporter: str = "",
         labels: str = "",
+        epic: str = "",
     ) -> str:
         """Create a new Jira issue.
 
@@ -195,8 +209,10 @@ def register(mcp):
             issue_type: Issue type - "Task", "Bug", "Story", "Epic" (default: Task)
             description: Issue description
             priority: Priority - "Highest", "High", "Medium", "Low", "Lowest"
-            assignee: Assignee username
+            assignee: Assignee email or name (resolved to accountId)
+            reporter: Reporter email or name (resolved to accountId)
             labels: Comma-separated labels (e.g. "backend,bug-fix")
+            epic: Epic key to link this issue to (e.g. "OED-6089")
         """
         proj = project or auth.jira_default_project()
         if not proj:
@@ -213,9 +229,21 @@ def register(mcp):
         if priority:
             fields["priority"] = {"name": priority}
         if assignee:
-            fields["assignee"] = {"name": assignee}
+            account_id = _resolve_user(assignee)
+            if account_id:
+                fields["assignee"] = {"accountId": account_id}
+            else:
+                return json.dumps({"error": f"Could not resolve assignee: {assignee}"})
+        if reporter:
+            account_id = _resolve_user(reporter)
+            if account_id:
+                fields["reporter"] = {"accountId": account_id}
+            else:
+                return json.dumps({"error": f"Could not resolve reporter: {reporter}"})
         if labels:
             fields["labels"] = [l.strip() for l in labels.split(",") if l.strip()]
+        if epic:
+            fields["customfield_10014"] = epic
 
         try:
             data = _api("post", "/issue", json={"fields": fields})

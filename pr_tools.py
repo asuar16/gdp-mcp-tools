@@ -1,7 +1,7 @@
 """PR discussion tools for GDP MCP server.
 
 Fetches GitHub PR review threads and comments using the gh CLI
-(same approach as gdp-cli pr_discussions).
+
 """
 
 import json

@@ -75,7 +75,7 @@ SYNC_JOB_PATH = os.environ.get(
 
 
 # ---------------------------------------------------------------------------
-# Jenkins REST helpers (same approach as gdp-cli: raw requests + Basic Auth)
+# Jenkins REST helpers (raw requests + Basic Auth)
 # ---------------------------------------------------------------------------
 def _job_url(env, job_path):
     """Full URL to a Jenkins job."""

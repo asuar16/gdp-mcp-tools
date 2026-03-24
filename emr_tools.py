@@ -1,7 +1,7 @@
 """EMR cluster tools for GDP MCP server.
 
 Lists and describes EMR clusters by scraping the CMDash web dashboard
-(the same approach used by gdp-cli listemr).
+
 """
 
 import json

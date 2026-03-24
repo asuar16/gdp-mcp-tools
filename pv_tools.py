@@ -909,10 +909,10 @@ def register(mcp):
                 "integrated_events.diner_session_cross_sell_impressions": "impression_type",
             }
 
-            for idx, (utbl, date_col) in enumerate(upstream_tables):
-                logger.info("[investigate] Step 3: Querying volume for %s (%d/%d)...", utbl, idx + 1, len(upstream_tables))
+            def _check_table_volume(utbl, date_col):
+                """Check volume for a single upstream table. Returns tbl_result dict."""
+                logger.info("[investigate] Querying volume for %s ...", utbl)
                 try:
-                    # Total volume check
                     vol_query = f"""
                         SELECT {date_col} AS dt,
                             COUNT(*) AS row_count
@@ -923,80 +923,91 @@ def register(mcp):
                         ORDER BY 1
                     """
                     vol_rows = _run_query(vol_query, dev=True)
-                    if vol_rows:
-                        counts = [int(r.get("row_count", 0)) for r in vol_rows]
-                        dates_list = [str(r.get("dt", "")) for r in vol_rows]
+                    if not vol_rows:
+                        return {"table": utbl, "error": "No rows returned"}
 
-                        pre = [c for c, d in zip(counts, dates_list) if d < inflection_date]
-                        post = [c for c, d in zip(counts, dates_list) if d >= inflection_date]
+                    counts = [int(r.get("row_count", 0)) for r in vol_rows]
+                    dates_list = [str(r.get("dt", "")) for r in vol_rows]
 
-                        pre_avg = sum(pre) / len(pre) if pre else 0
-                        post_avg = sum(post) / len(post) if post else 0
-                        change_pct = ((post_avg / pre_avg - 1) * 100) if pre_avg > 0 else 0
+                    pre = [c for c, d in zip(counts, dates_list) if d < inflection_date]
+                    post = [c for c, d in zip(counts, dates_list) if d >= inflection_date]
 
-                        tbl_result = {
-                            "table": utbl,
-                            "date_column": date_col,
-                            "pre_inflection_avg_rows": round(pre_avg),
-                            "post_inflection_avg_rows": round(post_avg),
-                            "change_pct": round(change_pct, 1),
-                            "anomaly": abs(change_pct) > 20,
-                        }
+                    pre_avg = sum(pre) / len(pre) if pre else 0
+                    post_avg = sum(post) / len(post) if post else 0
+                    change_pct = ((post_avg / pre_avg - 1) * 100) if pre_avg > 0 else 0
 
-                        # Group-level volume check for known tables
-                        group_col = _GROUP_COLS.get(utbl)
-                        if group_col:
-                            logger.info("[investigate]   Also checking %s by %s...", utbl, group_col)
-                            try:
-                                grp_query = f"""
-                                    SELECT {date_col} AS dt, {group_col} AS grp,
-                                        COUNT(*) AS row_count
-                                    FROM hive.{utbl}
-                                    WHERE {date_col} >= DATE '{date_before}'
-                                        AND {date_col} <= DATE '{date_after}'
-                                    GROUP BY 1, 2
-                                    ORDER BY 1, 2
-                                """
-                                grp_rows = _run_query(grp_query, dev=True)
-                                if grp_rows:
-                                    # Group by the group_col value
-                                    groups = {}
-                                    for r in grp_rows:
-                                        g = str(r.get("grp", ""))
-                                        dt = str(r.get("dt", ""))
-                                        cnt = int(r.get("row_count", 0))
-                                        if g not in groups:
-                                            groups[g] = {"pre": [], "post": []}
-                                        if dt < inflection_date:
-                                            groups[g]["pre"].append(cnt)
-                                        else:
-                                            groups[g]["post"].append(cnt)
+                    tbl_result = {
+                        "table": utbl,
+                        "date_column": date_col,
+                        "pre_inflection_avg_rows": round(pre_avg),
+                        "post_inflection_avg_rows": round(post_avg),
+                        "change_pct": round(change_pct, 1),
+                        "anomaly": abs(change_pct) > 20,
+                    }
 
-                                    group_anomalies = []
-                                    for g, vals in groups.items():
-                                        g_pre = sum(vals["pre"]) / len(vals["pre"]) if vals["pre"] else 0
-                                        g_post = sum(vals["post"]) / len(vals["post"]) if vals["post"] else 0
-                                        g_change = ((g_post / g_pre - 1) * 100) if g_pre > 0 else 0
-                                        if abs(g_change) > 20:
-                                            group_anomalies.append({
-                                                "group": g,
-                                                "pre_avg": round(g_pre),
-                                                "post_avg": round(g_post),
-                                                "change_pct": round(g_change, 1),
-                                            })
+                    # Group-level volume check for known tables
+                    group_col = _GROUP_COLS.get(utbl)
+                    if group_col:
+                        logger.info("[investigate]   Also checking %s by %s...", utbl, group_col)
+                        try:
+                            grp_query = f"""
+                                SELECT {date_col} AS dt, {group_col} AS grp,
+                                    COUNT(*) AS row_count
+                                FROM hive.{utbl}
+                                WHERE {date_col} >= DATE '{date_before}'
+                                    AND {date_col} <= DATE '{date_after}'
+                                GROUP BY 1, 2
+                                ORDER BY 1, 2
+                            """
+                            grp_rows = _run_query(grp_query, dev=True)
+                            if grp_rows:
+                                groups = {}
+                                for r in grp_rows:
+                                    g = str(r.get("grp", ""))
+                                    dt = str(r.get("dt", ""))
+                                    cnt = int(r.get("row_count", 0))
+                                    if g not in groups:
+                                        groups[g] = {"pre": [], "post": []}
+                                    if dt < inflection_date:
+                                        groups[g]["pre"].append(cnt)
+                                    else:
+                                        groups[g]["post"].append(cnt)
 
-                                    if group_anomalies:
-                                        tbl_result["group_anomalies"] = group_anomalies
-                                        tbl_result["group_column"] = group_col
-                                        tbl_result["anomaly"] = True  # Override: group-level anomaly found
-                            except Exception as e:
-                                logger.warning("[investigate]   Group check failed for %s: %s", utbl, e)
+                                group_anomalies = []
+                                for g, vals in groups.items():
+                                    g_pre = sum(vals["pre"]) / len(vals["pre"]) if vals["pre"] else 0
+                                    g_post = sum(vals["post"]) / len(vals["post"]) if vals["post"] else 0
+                                    g_change = ((g_post / g_pre - 1) * 100) if g_pre > 0 else 0
+                                    if abs(g_change) > 20:
+                                        group_anomalies.append({
+                                            "group": g,
+                                            "pre_avg": round(g_pre),
+                                            "post_avg": round(g_post),
+                                            "change_pct": round(g_change, 1),
+                                        })
 
-                        step3["tables"].append(tbl_result)
-                        if tbl_result["anomaly"]:
-                            volume_anomalies.append(tbl_result)
+                                if group_anomalies:
+                                    tbl_result["group_anomalies"] = group_anomalies
+                                    tbl_result["group_column"] = group_col
+                                    tbl_result["anomaly"] = True
+                        except Exception as e:
+                            logger.warning("[investigate]   Group check failed for %s: %s", utbl, e)
+
+                    logger.info("[investigate] Done: %s -> %+.1f%%", utbl, change_pct)
+                    return tbl_result
                 except Exception as e:
-                    step3["tables"].append({"table": utbl, "error": str(e)})
+                    return {"table": utbl, "error": str(e)}
+
+            # Run all volume checks concurrently
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            logger.info("[investigate] Step 3: Running %d volume checks concurrently...", len(upstream_tables))
+            with ThreadPoolExecutor(max_workers=min(len(upstream_tables), 5)) as executor:
+                futures = {executor.submit(_check_table_volume, utbl, dc): utbl for utbl, dc in upstream_tables}
+                for future in as_completed(futures):
+                    tbl_result = future.result()
+                    step3["tables"].append(tbl_result)
+                    if tbl_result.get("anomaly"):
+                        volume_anomalies.append(tbl_result)
 
             if volume_anomalies:
                 step3["verdict"] = f"VOLUME ANOMALY IN {len(volume_anomalies)} TABLE(S)"

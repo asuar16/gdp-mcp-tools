@@ -1,4 +1,24 @@
-# GDP MCP Server Setup Guide
+# GDP MCP Tools
+
+MCP server for Grubhub Data Platform operations -- 37 tools for Jenkins, Azkaban, Trino, Jira, Slack, VPN, PV Analysis, and more.
+
+## Quick Start
+
+```bash
+git clone https://github.com/asuar16/gdp-mcp-tools.git
+cd gdp-mcp-tools
+python3 -m venv mcp_venv && source mcp_venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env          # fill in your credentials
+cp .mcp.json.example .mcp.json
+# Edit config.json with your events-mart repo path (for PV tools)
+```
+
+See [TOOLS.md](TOOLS.md) for the full 37-tool reference.
+
+---
+
+## Setup Guide
 
 Cross-platform setup for the Grubhub Data Platform MCP server. Works with Claude Code, GitHub Copilot, VS Code, Cursor, or any MCP-compatible client.
 

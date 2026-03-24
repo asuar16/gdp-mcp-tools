@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 _CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
 _REPO_ROOT_CACHE = None
 
-
 def _get_repo_root():
     global _REPO_ROOT_CACHE
     if _REPO_ROOT_CACHE is not None:
@@ -40,9 +39,7 @@ def _get_repo_root():
     _REPO_ROOT_CACHE = Path(".")
     return _REPO_ROOT_CACHE
 
-
 _TABLE_VALIDATIONS_PATH_CACHE = None
-
 
 def _get_table_validations_path():
     global _TABLE_VALIDATIONS_PATH_CACHE
@@ -683,10 +680,21 @@ def register(mcp):
             pattern_label = metric_pattern or "all"
             html = _generate_html_report(summary, recurring, analyses, pattern_label, days, investigation)
 
-            # 5. Write to /tmp
+            # 5. Write to persistent directory (~/pv_reports/) + /tmp for quick access
+            import os
             safe_pattern = _sanitize_filename(pattern_label)
-            report_path = f"/tmp/pv_analysis_report_{safe_pattern}_{timestamp}.html"
+            report_filename = f"pv_analysis_report_{safe_pattern}_{timestamp}.html"
+
+            # Save to ~/pv_reports/ (persistent across reboots)
+            persistent_dir = Path.home() / "pv_reports"
+            persistent_dir.mkdir(exist_ok=True)
+            report_path = str(persistent_dir / report_filename)
             with open(report_path, "w") as f:
+                f.write(html)
+
+            # Also save to /tmp for quick access
+            tmp_path = f"/tmp/{report_filename}"
+            with open(tmp_path, "w") as f:
                 f.write(html)
 
             result = {
@@ -1961,11 +1969,30 @@ def _generate_html_report(summary, recurring, analyses, pattern_label, days, inv
                     # Build threshold lookup from PV trend data
                     # min_expected IS the threshold -- actual < min_expected = FAIL
                     threshold_by_date = {}
+                    threshold_pct = 85.0  # default WoW threshold
                     for t in a.get("trend", []):
                         dt = str(t.get("date", ""))
                         exp = t.get("expected")
                         if exp is not None:
                             threshold_by_date[dt] = exp
+                        if t.get("threshold") is not None:
+                            threshold_pct = t["threshold"]
+
+                    # For chart dates without PV data, compute threshold from
+                    # decomposition CVR using a rolling average * threshold_pct/100.
+                    # This ensures the threshold line spans ALL chart dates.
+                    all_decomp_cvrs = [(str(d.get("date", "")), d.get("cvr")) for d in decomp if d.get("cvr") is not None]
+                    for i, d in enumerate(chart_data):
+                        dt = str(d.get("date", ""))
+                        if dt in threshold_by_date:
+                            continue  # already have PV threshold
+                        # Compute rolling 36-day average CVR from decomposition data
+                        prior_cvrs = [c for dd, c in all_decomp_cvrs if dd < dt and c is not None]
+                        if prior_cvrs:
+                            # Use up to last 36 data points as the baseline
+                            baseline = prior_cvrs[-36:]
+                            avg_cvr = sum(baseline) / len(baseline)
+                            threshold_by_date[dt] = avg_cvr * threshold_pct / 100.0
 
                     html += f'<h3 style="margin-top:15px">CVR Decomposition</h3>\n'
                     html += _build_svg_line_chart(chart_data, fail_dates, num_label, den_label, threshold_by_date)

@@ -48,10 +48,10 @@ mcp_venv\Scripts\activate.bat
 ## 2. Install Dependencies
 
 ```bash
-pip install -r requirements_mcp.txt
+pip install -r requirements.txt
 ```
 
-`requirements_mcp.txt` contents:
+`requirements.txt` contents:
 ```
 mcp[cli]>=1.2.0
 requests
@@ -69,10 +69,10 @@ fabric>=3.2
 Copy the example and fill in your credentials:
 
 ```bash
-cp src/mcp_servers/gdp/.env.example src/mcp_servers/gdp/.env
+cp ./.env.example ./.env
 ```
 
-Edit `src/mcp_servers/gdp/.env`:
+Edit `./.env`:
 
 ```env
 # === Identity ===
@@ -125,7 +125,7 @@ Create `.mcp.json` in the repo root:
     "gdp-tools": {
       "type": "stdio",
       "command": "mcp_venv/bin/python",
-      "args": ["src/mcp_servers/gdp/server.py"]
+      "args": ["server.py"]
     }
   }
 }
@@ -138,7 +138,7 @@ Create `.mcp.json` in the repo root:
     "gdp-tools": {
       "type": "stdio",
       "command": "mcp_venv\\Scripts\\python.exe",
-      "args": ["src/mcp_servers/gdp/server.py"]
+      "args": ["server.py"]
     }
   }
 }
@@ -154,7 +154,7 @@ Add to `.vscode/settings.json`:
     "gdp-tools": {
       "type": "stdio",
       "command": "${workspaceFolder}/mcp_venv/bin/python",
-      "args": ["${workspaceFolder}/src/mcp_servers/gdp/server.py"]
+      "args": ["${workspaceFolder}/server.py"]
     }
   }
 }
@@ -170,7 +170,7 @@ Add to `.mcp.json`:
     "gdp-tools": {
       "type": "stdio",
       "command": "mcp_venv/bin/python",
-      "args": ["src/mcp_servers/gdp/server.py"]
+      "args": ["server.py"]
     },
     "github": {
       "type": "http",
@@ -189,10 +189,10 @@ The server uses **stdio transport**. Start it with:
 
 ```bash
 # macOS / Linux
-./mcp_venv/bin/python src/mcp_servers/gdp/server.py
+./mcp_venv/bin/python server.py
 
 # Windows
-.\mcp_venv\Scripts\python.exe src\mcp_servers\gdp\server.py
+.\mcp_venv\Scripts\python.exe server.py
 ```
 
 The server reads JSON-RPC messages from stdin and writes responses to stdout. All logs go to stderr.
@@ -202,11 +202,9 @@ The server reads JSON-RPC messages from stdin and writes responses to stdout. Al
 ```bash
 # Test the server starts without errors
 ./mcp_venv/bin/python -c "
-import sys
-sys.path.insert(0, 'src/mcp_servers/gdp')
 from dotenv import load_dotenv
 from pathlib import Path
-load_dotenv(dotenv_path=Path('src/mcp_servers/gdp/.env'))
+load_dotenv(dotenv_path=Path('.env'))
 import auth
 print('Username:', auth.get_username())
 print('Jenkins URL:', auth.jenkins_url())
@@ -242,21 +240,26 @@ Always run `vpn_connect` (or connect manually) before using any other tools.
 ## File Structure
 
 ```
-src/mcp_servers/gdp/
-  .env              # Credentials (gitignored)
-  .env.example      # Template for .env
-  server.py         # MCP server entry point
-  auth.py           # Shared authentication (Jenkins, Azkaban, Trino, Jira)
-  jenkins_tools.py  # Table sync, deploy, validate, integrate, cluster mgmt
-  scheduler_tools.py# Azkaban workflow management
-  trino_tools.py    # SQL query execution
-  emr_tools.py      # EMR cluster info
-  pr_tools.py       # GitHub PR discussions
-  flowlogs_tools.py # Azkaban log retrieval via SSH
-  vpn_tools.py      # F5 VPN connect/disconnect/status
-  jira_tools.py     # Jira issue management
-  slack_tools.py    # Slack messaging
-  spark_tools.py    # Spark History Server metrics
-  sync_plan_tools.py# Smart sync planning
-  pv_tools.py       # PV failure analysis, reports, root cause investigation
+gdp-mcp-tools/
+  README.md           # This setup guide
+  TOOLS.md            # Full 37-tool reference
+  requirements.txt    # Python dependencies
+  config.json         # Points to events-mart repo (for PV tools)
+  .env.example        # Credential template
+  .mcp.json.example   # MCP client config template
+  .gitignore          # Ignores .env, __pycache__, venv
+  server.py           # MCP server entry point
+  auth.py             # Shared authentication (Jenkins, Azkaban, Trino, Jira)
+  jenkins_tools.py    # Table sync, deploy, validate, integrate, cluster mgmt (11 tools)
+  scheduler_tools.py  # Azkaban workflow management (6 tools)
+  trino_tools.py      # SQL query execution (1 tool)
+  emr_tools.py        # EMR cluster info (2 tools)
+  pr_tools.py         # GitHub PR discussions (1 tool)
+  flowlogs_tools.py   # Azkaban log retrieval via SSH (1 tool)
+  vpn_tools.py        # VPN connect/disconnect/status (3 tools)
+  jira_tools.py       # Jira issue management (5 tools)
+  slack_tools.py      # Slack messaging (1 tool)
+  spark_tools.py      # Spark History Server metrics (2 tools)
+  sync_plan_tools.py  # Smart sync planning (2 tools)
+  pv_tools.py         # PV failure analysis, reports, root cause investigation (4 tools)
 ```

@@ -33,7 +33,6 @@ def _get_repo_root():
         if repo_path:
             _REPO_ROOT_CACHE = Path(repo_path)
             return _REPO_ROOT_CACHE
-    # Fallback: assume this repo is inside events-mart/src/mcp_servers/gdp/
     candidate = Path(__file__).resolve().parent.parent.parent.parent
     if (candidate / "src" / "projects").is_dir():
         _REPO_ROOT_CACHE = candidate
@@ -657,10 +656,32 @@ def register(mcp):
                 except Exception as e:
                     logger.warning("Failed to analyze %s/%s: %s", m["metric_name"], m.get("segment"), e)
 
-            # 4. Generate HTML report
+            # 4. Run root cause investigation on the top failing metric
+            investigation = None
+            if analyses:
+                # Pick the metric with the most fail days for investigation
+                top = max(analyses, key=lambda a: a.get("fail_count", 0))
+                top_name = top.get("metric_name", "")
+                top_seg = top.get("segment", "")
+                top_inflection = top.get("inflection_date", "")
+                if top_name and top_inflection:
+                    try:
+                        logger.info("[report] Running root cause investigation for %s / %s ...", top_name, top_seg)
+                        inv_json = pv_investigate_root_cause(
+                            metric_name=top_name,
+                            segment=top_seg,
+                            inflection_date=top_inflection,
+                        )
+                        inv = json.loads(inv_json)
+                        if "error" not in inv:
+                            investigation = inv
+                    except Exception as e:
+                        logger.warning("Investigation failed: %s", e)
+
+            # 5. Generate HTML report
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             pattern_label = metric_pattern or "all"
-            html = _generate_html_report(summary, recurring, analyses, pattern_label, days)
+            html = _generate_html_report(summary, recurring, analyses, pattern_label, days, investigation)
 
             # 5. Write to /tmp
             safe_pattern = _sanitize_filename(pattern_label)
@@ -1504,7 +1525,7 @@ def _format_number(n):
     return f"{n:.1f}"
 
 
-def _generate_html_report(summary, recurring, analyses, pattern_label, days):
+def _generate_html_report(summary, recurring, analyses, pattern_label, days, investigation=None):
     """Generate a styled HTML report matching the quality of PV_DISCOVERY_ANALYSIS_REPORT.html.
 
     Includes: executive summary, daily chart, recurring failures table, per-metric
@@ -1983,6 +2004,93 @@ def _generate_html_report(summary, recurring, analyses, pattern_label, days):
                     html += "</table>\n"
 
             html += "</div>\n"
+
+    # =====================================================================
+    # INVESTIGATION SUMMARY (from pv_investigate_root_cause)
+    # =====================================================================
+    if investigation:
+        inv_verdict = investigation.get("verdict", "Unknown")
+        inv_explanation = investigation.get("explanation", "")
+        inv_steps = investigation.get("steps", [])
+        inv_metric = investigation.get("metric_name", "")
+        inv_segment = investigation.get("segment", "")
+
+        verdict_colors = {
+            "UPSTREAM_DATA_CHANGE": ("#22c55e", "card-green"),
+            "OUR_CODE_CHANGE": ("#ef4444", "card-red"),
+            "MIXED_SIGNAL": ("#f59e0b", "card-orange"),
+            "CONFIG_ONLY_CHANGE": ("#3b82f6", "card-blue"),
+            "INCONCLUSIVE": ("#f59e0b", "card-orange"),
+            "NO_CHANGES_DETECTED": ("#94a3b8", "card-blue"),
+        }
+        v_color, v_card = verdict_colors.get(inv_verdict, ("#94a3b8", "card-blue"))
+
+        html += f'<h2>Root Cause Investigation</h2>\n'
+        html += f'<p style="color:#94a3b8;margin-bottom:10px">Investigated: <code>{_html_escape(inv_metric)}</code> [{_html_escape(inv_segment)}] | Inflection: {_html_escape(investigation.get("inflection_date", ""))}</p>\n'
+
+        # Verdict card
+        html += f'<div class="card {v_card}">\n'
+        html += f'<h3 style="color:{v_color}">Verdict: {_html_escape(inv_verdict.replace("_", " "))}</h3>\n'
+        html += f'<p>{_html_escape(inv_explanation)}</p>\n'
+        html += '</div>\n'
+
+        # Investigation steps table
+        html += '<div class="card card-blue">\n<table>\n'
+        html += '<tr><th>Step</th><th>Finding</th><th>Verdict</th></tr>\n'
+        for step in inv_steps:
+            step_name = step.get("name", "")
+            step_verdict = step.get("verdict", "")
+            is_clean = "NO " in step_verdict or step_verdict == "NO VOLUME ANOMALIES"
+            tag_cls = "tag-pass" if is_clean else "tag-fail"
+            html += f'<tr><td>{_html_escape(step_name)}</td><td>'
+
+            # Show details per step
+            if step.get("commits"):
+                for c in step["commits"][:3]:
+                    commit_text = c.get("commit", c.get("path", ""))
+                    html += f'<code>{_html_escape(commit_text)}</code><br>'
+            elif step.get("tables"):
+                for t in step["tables"]:
+                    tbl = t.get("table", "")
+                    chg = t.get("change_pct", 0)
+                    chg_cls = "fail" if t.get("anomaly") else ""
+                    detail = f'{_html_escape(tbl)}: <span class="{chg_cls}">{chg:+.1f}%</span>'
+                    # Show group anomalies
+                    if t.get("group_anomalies"):
+                        grp_parts = [f'{g["group"]}: {g["change_pct"]:+.0f}%' for g in t["group_anomalies"][:3]]
+                        detail += f' [{", ".join(grp_parts)}]'
+                    html += f'{detail}<br>'
+            elif step.get("findings"):
+                seen_cols = set()
+                for f in step["findings"][:4]:
+                    col = f.get("column", "")
+                    if col not in seen_cols:
+                        html += f'<code>{_html_escape(col)}</code>: {_html_escape(f.get("commit", ""))}<br>'
+                        seen_cols.add(col)
+            else:
+                html += 'None found'
+
+            html += f'</td><td><span class="tag {tag_cls}">{_html_escape(step_verdict)}</span></td></tr>\n'
+        html += '</table>\n</div>\n'
+
+        # Summary table (Layer / Repo / Changed / Anomaly)
+        inv_summary = investigation.get("summary_table", [])
+        if inv_summary:
+            html += '<h3>Investigation Summary</h3>\n<div class="card card-green">\n<table>\n'
+            html += '<tr><th>Layer</th><th>Repo</th><th>Code Changed?</th><th>Volume Anomaly?</th></tr>\n'
+            for layer in inv_summary:
+                lname = layer.get("layer", "")
+                repo = layer.get("repo", "unknown")
+                code_changed = layer.get("code_changed", False)
+                config_changed = layer.get("config_changed", False)
+                vol_anomaly = layer.get("volume_anomaly", False)
+                chg_pct = layer.get("change_pct", 0)
+
+                code_tag = '<span class="tag tag-fail">YES</span>' if code_changed else ('<span class="tag tag-warn">CONFIG</span>' if config_changed else '<span class="tag tag-pass">NO</span>')
+                vol_tag = f'<span class="tag tag-fail">YES ({chg_pct:+.0f}%)</span>' if vol_anomaly else '<span class="tag tag-pass">NO ({0:+.0f}%)</span>'.format(chg_pct)
+
+                html += f'<tr><td><code>{_html_escape(lname)}</code></td><td>{_html_escape(repo)}</td><td>{code_tag}</td><td>{vol_tag}</td></tr>\n'
+            html += '</table>\n</div>\n'
 
     # =====================================================================
     # DATA LINEAGE (auto-generated from known upstream dependencies)

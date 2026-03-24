@@ -1,0 +1,4 @@
+{
+    "_comment": "Set events_mart_repo_path to your local events-mart checkout for PV tools (git analysis, table_validations.json)",
+    "events_mart_repo_path": ""
+}

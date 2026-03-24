@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "gdp-tools": {
+      "type": "stdio",
+      "command": "mcp_venv/bin/python",
+      "args": ["server.py"]
+    }
+  }
+}

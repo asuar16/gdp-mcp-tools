@@ -1,24 +1,4 @@
-# GDP MCP Tools
-
-MCP server for Grubhub Data Platform operations -- 37 tools for Jenkins, Azkaban, Trino, Jira, Slack, VPN, PV Analysis, and more.
-
-## Quick Start
-
-```bash
-git clone https://github.com/asuar16/gdp-mcp-tools.git
-cd gdp-mcp-tools
-python3 -m venv mcp_venv && source mcp_venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env          # fill in your credentials
-cp .mcp.json.example .mcp.json
-# Edit config.json with your events-mart repo path (for PV tools)
-```
-
-See [TOOLS.md](TOOLS.md) for the full 37-tool reference.
-
----
-
-## Setup Guide
+# GDP MCP Server Setup Guide
 
 Cross-platform setup for the Grubhub Data Platform MCP server. Works with Claude Code, GitHub Copilot, VS Code, Cursor, or any MCP-compatible client.
 
@@ -48,10 +28,10 @@ mcp_venv\Scripts\activate.bat
 ## 2. Install Dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements_mcp.txt
 ```
 
-`requirements.txt` contents:
+`requirements_mcp.txt` contents:
 ```
 mcp[cli]>=1.2.0
 requests
@@ -69,10 +49,10 @@ fabric>=3.2
 Copy the example and fill in your credentials:
 
 ```bash
-cp ./.env.example ./.env
+cp src/mcp_servers/gdp/.env.example src/mcp_servers/gdp/.env
 ```
 
-Edit `./.env`:
+Edit `src/mcp_servers/gdp/.env`:
 
 ```env
 # === Identity ===
@@ -112,6 +92,12 @@ GITHUB_TOKEN=ghp_your-github-pat
 | `PRESTO_PASSWORD` | Trino cluster password (ask team lead) |
 | `JIRA_PERSONAL_TOKEN` | Jira > Profile > Personal Access Tokens > Create token |
 | `GITHUB_TOKEN` | GitHub > Settings > Developer Settings > Personal Access Tokens (needs `repo` + `read:org` scopes, SSO authorized for GrubhubProd) |
+| `REDASH_API_KEY` | dev-redash.gdp.data.grubhub.com > Profile (top right) > API Key |
+| `SLACK_MCP_XOXC_TOKEN` | Open Slack in browser > DevTools > Network tab > Copy from request headers ([guide](https://github.com/korotovsky/slack-mcp-server/blob/master/docs/01-authentication-setup.md)) |
+| `DD_API_KEY` | DataDog > Organization Settings > API Keys |
+| `DD_APP_KEY` | DataDog > Organization Settings > Application Keys > New Key (add scopes) |
+| `PAGERDUTY_USER_API_KEY` | PagerDuty > User Settings > Create API User Token |
+| `GOOGLE_OAUTH_CLIENT_ID` | Contact team lead for OAuth client credentials |
 
 ## 4. Configure Your MCP Client
 
@@ -125,7 +111,7 @@ Create `.mcp.json` in the repo root:
     "gdp-tools": {
       "type": "stdio",
       "command": "mcp_venv/bin/python",
-      "args": ["server.py"]
+      "args": ["src/mcp_servers/gdp/server.py"]
     }
   }
 }
@@ -138,7 +124,7 @@ Create `.mcp.json` in the repo root:
     "gdp-tools": {
       "type": "stdio",
       "command": "mcp_venv\\Scripts\\python.exe",
-      "args": ["server.py"]
+      "args": ["src/mcp_servers/gdp/server.py"]
     }
   }
 }
@@ -154,7 +140,7 @@ Add to `.vscode/settings.json`:
     "gdp-tools": {
       "type": "stdio",
       "command": "${workspaceFolder}/mcp_venv/bin/python",
-      "args": ["${workspaceFolder}/server.py"]
+      "args": ["${workspaceFolder}/src/mcp_servers/gdp/server.py"]
     }
   }
 }
@@ -170,7 +156,7 @@ Add to `.mcp.json`:
     "gdp-tools": {
       "type": "stdio",
       "command": "mcp_venv/bin/python",
-      "args": ["server.py"]
+      "args": ["src/mcp_servers/gdp/server.py"]
     },
     "github": {
       "type": "http",
@@ -189,10 +175,10 @@ The server uses **stdio transport**. Start it with:
 
 ```bash
 # macOS / Linux
-./mcp_venv/bin/python server.py
+./mcp_venv/bin/python src/mcp_servers/gdp/server.py
 
 # Windows
-.\mcp_venv\Scripts\python.exe server.py
+.\mcp_venv\Scripts\python.exe src\mcp_servers\gdp\server.py
 ```
 
 The server reads JSON-RPC messages from stdin and writes responses to stdout. All logs go to stderr.
@@ -202,9 +188,11 @@ The server reads JSON-RPC messages from stdin and writes responses to stdout. Al
 ```bash
 # Test the server starts without errors
 ./mcp_venv/bin/python -c "
+import sys
+sys.path.insert(0, 'src/mcp_servers/gdp')
 from dotenv import load_dotenv
 from pathlib import Path
-load_dotenv(dotenv_path=Path('.env'))
+load_dotenv(dotenv_path=Path('src/mcp_servers/gdp/.env'))
 import auth
 print('Username:', auth.get_username())
 print('Jenkins URL:', auth.jenkins_url())
@@ -240,26 +228,21 @@ Always run `vpn_connect` (or connect manually) before using any other tools.
 ## File Structure
 
 ```
-gdp-mcp-tools/
-  README.md           # This setup guide
-  TOOLS.md            # Full 37-tool reference
-  requirements.txt    # Python dependencies
-  config.json         # Points to events-mart repo (for PV tools)
-  .env.example        # Credential template
-  .mcp.json.example   # MCP client config template
-  .gitignore          # Ignores .env, __pycache__, venv
-  server.py           # MCP server entry point
-  auth.py             # Shared authentication (Jenkins, Azkaban, Trino, Jira)
-  jenkins_tools.py    # Table sync, deploy, validate, integrate, cluster mgmt (11 tools)
-  scheduler_tools.py  # Azkaban workflow management (6 tools)
-  trino_tools.py      # SQL query execution (1 tool)
-  emr_tools.py        # EMR cluster info (2 tools)
-  pr_tools.py         # GitHub PR discussions (1 tool)
-  flowlogs_tools.py   # Azkaban log retrieval via SSH (1 tool)
-  vpn_tools.py        # VPN connect/disconnect/status (3 tools)
-  jira_tools.py       # Jira issue management (5 tools)
-  slack_tools.py      # Slack messaging (1 tool)
-  spark_tools.py      # Spark History Server metrics (2 tools)
-  sync_plan_tools.py  # Smart sync planning (2 tools)
-  pv_tools.py         # PV failure analysis, reports, root cause investigation (4 tools)
+src/mcp_servers/gdp/
+  .env              # Credentials (gitignored)
+  .env.example      # Template for .env
+  server.py         # MCP server entry point
+  auth.py           # Shared authentication (Jenkins, Azkaban, Trino, Jira)
+  jenkins_tools.py  # Table sync, deploy, validate, integrate, cluster mgmt
+  scheduler_tools.py# Azkaban workflow management
+  trino_tools.py    # SQL query execution
+  emr_tools.py      # EMR cluster info
+  pr_tools.py       # GitHub PR discussions
+  flowlogs_tools.py # Azkaban log retrieval via SSH
+  vpn_tools.py      # F5 VPN connect/disconnect/status
+  jira_tools.py     # Jira issue management
+  slack_tools.py    # Slack messaging
+  spark_tools.py    # Spark History Server metrics
+  sync_plan_tools.py# Smart sync planning
+  pv_tools.py       # PV failure analysis, reports, root cause investigation
 ```

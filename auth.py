@@ -19,18 +19,18 @@ logger = logging.getLogger(__name__)
 # Environment-specific URLs
 # ---------------------------------------------------------------------------
 _JENKINS_URLS = {
-    "dev": "https://dev-jenkins.gdp.data.grubhub.com",
-    "prod": "https://jenkins.gdp.data.grubhub.com",
+    "dev": os.environ.get("DEV_JENKINS_URL", "https://dev-jenkins.gdp.data.grubhub.com"),
+    "prod": os.environ.get("PROD_JENKINS_URL", "https://jenkins.gdp.data.grubhub.com"),
 }
 
 _AZKABAN_URLS = {
-    "dev": "http://dev-azkaban-dr.gdp.data.grubhub.com",
-    "prod": "https://azkaban.gdp.data.grubhub.com",
+    "dev": os.environ.get("DEV_AZKABAN_URL", "http://dev-azkaban-dr.gdp.data.grubhub.com"),
+    "prod": os.environ.get("PROD_AZKABAN_URL", "https://azkaban.gdp.data.grubhub.com"),
 }
 
 _CMDASH_URLS = {
-    "dev": "https://dev-cmdash.gdp.data.grubhub.com",
-    "prod": "https://cmdash.gdp.data.grubhub.com",
+    "dev": os.environ.get("DEV_CMDASH_URL", "https://dev-cmdash.gdp.data.grubhub.com"),
+    "prod": os.environ.get("PROD_CMDASH_URL", "https://cmdash.gdp.data.grubhub.com"),
 }
 
 # Cached Azkaban sessions: {env: requests.Session}

@@ -8,11 +8,12 @@ Data source ID defaults to 2 (Presto prod). Check /api/data_sources to see avail
 """
 
 import json
+import os
 import sys
 
 import requests
 
-REDASH_URL = "https://dev-redash.gdp.data.grubhub.com"
+REDASH_URL = os.environ.get("REDASH_URL", "https://dev-redash.gdp.data.grubhub.com")
 
 QUERIES = [
     {

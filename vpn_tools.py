@@ -6,6 +6,7 @@ Provides connect, disconnect, status, and auto-reconnect watchdog.
 
 import json
 import logging
+import os
 import subprocess
 import threading
 import time
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 F5_APP_NAME = "F5 VPN"
 F5_APP_PATH = f"/Applications/{F5_APP_NAME}.app"
-VPN_PORTAL_URL = "https://vpn.grubhub.com"
+VPN_PORTAL_URL = os.environ.get("VPN_PORTAL_URL", "https://vpn.grubhub.com")
 
 # Watchdog settings
 WATCHDOG_INTERVAL_SEC = 30 * 60  # 30 minutes - reconnect check

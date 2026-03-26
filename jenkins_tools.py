@@ -600,7 +600,8 @@ def register(mcp):
             repo: Repository name (default: events-mart)
             env: Target environment - "dev" or "prod" (default: dev)
         """
-        job_path = f"job/experiments/job/Deployments/job/{repo}/job/deploy-{repo}"
+        deploy_path_template = os.environ.get("DEPLOY_JOB_PATH_TEMPLATE", "job/experiments/job/Deployments/job/{repo}/job/deploy-{repo}")
+        job_path = deploy_path_template.format(repo=repo)
         params = {"VERSION": version}
 
         try:
@@ -708,7 +709,7 @@ def register(mcp):
         Args:
             env: Target environment - "dev" or "prod" (default: dev)
         """
-        job_path = "job/data_platform/job/Tasks/job/cluster_operations/job/stop-cluster"
+        job_path = os.environ.get("STOP_CLUSTER_JOB_PATH", "job/data_platform/job/Tasks/job/cluster_operations/job/stop-cluster")
 
         try:
             return _run_jenkins_build(env, job_path, params={})

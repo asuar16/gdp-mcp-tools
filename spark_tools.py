@@ -6,6 +6,7 @@ for performance analysis during and after ETL runs.
 
 import json
 import logging
+import os
 
 import requests
 
@@ -14,7 +15,7 @@ import auth
 logger = logging.getLogger(__name__)
 
 # Spark History Server port (standard)
-SPARK_HS_PORT = 18080
+SPARK_HS_PORT = int(os.environ.get("SPARK_HS_PORT", "18080"))
 
 
 def _spark_hs_url(cluster_host, env="dev"):

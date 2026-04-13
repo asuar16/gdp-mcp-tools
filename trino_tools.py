@@ -23,6 +23,7 @@ def register(mcp):
         query: str,
         dev: bool = True,
         dialect: str = "",
+        cluster: str = "",
     ) -> str:
         """Execute a SQL query against Trino and return results as JSON.
 
@@ -33,6 +34,7 @@ def register(mcp):
             query: SQL query to execute
             dev: Run against dev cluster (true) or prod cluster (false). Default: true
             dialect: Optional source dialect for sqlglot transpilation (e.g. "hive", "spark"). If set, the query is transpiled from this dialect to Trino SQL before execution.
+            cluster: Optional cluster override: "dev", "prod", or "preprod". If set, overrides the dev parameter.
         """
         # Optional: transpile from another dialect to Trino
         if dialect:
@@ -45,8 +47,11 @@ def register(mcp):
             except Exception as e:
                 return json.dumps({"error": f"sqlglot transpilation failed: {e}"})
 
+        # Resolve cluster name
+        effective_cluster = cluster if cluster in ("dev", "prod", "preprod") else ("dev" if dev else "prod")
+
         try:
-            conn = auth.trino_connection(dev=dev)
+            conn = auth.trino_connection(dev=dev, cluster=cluster if cluster in ("dev", "prod", "preprod") else None)
         except RuntimeError as e:
             return json.dumps({"error": str(e)})
         except ImportError:
@@ -74,7 +79,7 @@ def register(mcp):
                 "rows": rows,
                 "row_count": len(rows),
                 "truncated": truncated,
-                "cluster": "dev" if dev else "prod",
+                "cluster": effective_cluster,
             }, default=str)
 
             # Cap total response size
@@ -87,7 +92,7 @@ def register(mcp):
                         "rows": rows,
                         "row_count": len(rows),
                         "truncated": True,
-                        "cluster": "dev" if dev else "prod",
+                        "cluster": effective_cluster,
                         "note": "Response truncated to fit size limit",
                     }, default=str)
                     if len(result) <= MAX_CHARS:

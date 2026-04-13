@@ -16,38 +16,9 @@ import auth
 
 logger = logging.getLogger(__name__)
 
-# Path to events-mart repo (configurable via config.json)
-_CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
-_REPO_ROOT_CACHE = None
-
-def _get_repo_root():
-    global _REPO_ROOT_CACHE
-    if _REPO_ROOT_CACHE is not None:
-        return _REPO_ROOT_CACHE
-    if _CONFIG_PATH.exists():
-        import json as _json
-        with open(_CONFIG_PATH) as _f:
-            cfg = _json.load(_f)
-        repo_path = cfg.get("events_mart_repo_path", "")
-        if repo_path:
-            _REPO_ROOT_CACHE = Path(repo_path)
-            return _REPO_ROOT_CACHE
-    candidate = Path(__file__).resolve().parent.parent.parent.parent
-    if (candidate / "src" / "projects").is_dir():
-        _REPO_ROOT_CACHE = candidate
-        return _REPO_ROOT_CACHE
-    _REPO_ROOT_CACHE = Path(".")
-    return _REPO_ROOT_CACHE
-
-_TABLE_VALIDATIONS_PATH_CACHE = None
-
-def _get_table_validations_path():
-    global _TABLE_VALIDATIONS_PATH_CACHE
-    if _TABLE_VALIDATIONS_PATH_CACHE is not None:
-        return _TABLE_VALIDATIONS_PATH_CACHE
-    root = _get_repo_root()
-    _TABLE_VALIDATIONS_PATH_CACHE = root / "src" / "projects" / "clickstream_pv_metric_analysis" / "pyspark" / "table_validations.json"
-    return _TABLE_VALIDATIONS_PATH_CACHE
+# Path to table_validations.json (relative to events-mart repo root)
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+_TABLE_VALIDATIONS_PATH = _REPO_ROOT / "src" / "projects" / "clickstream_pv_metric_analysis" / "pyspark" / "table_validations.json"
 
 # PV results table (always queried from prod)
 _PV_TABLE = "hive.integrated_events.clickstream_pv_metric_analysis"
@@ -135,9 +106,9 @@ def _run_query(query, dev=False):
 
 def _load_table_validations():
     """Load and parse table_validations.json."""
-    if not _get_table_validations_path().exists():
+    if not _TABLE_VALIDATIONS_PATH.exists():
         return None
-    with open(_get_table_validations_path()) as f:
+    with open(_TABLE_VALIDATIONS_PATH) as f:
         return json.load(f)
 
 
@@ -802,7 +773,7 @@ def register(mcp):
                 try:
                     result = subprocess.run(
                         ["git", "log", "--oneline", "--after", date_before, "--before", date_after, "--", loader_path],
-                        capture_output=True, text=True, cwd=str(_get_repo_root()), timeout=10,
+                        capture_output=True, text=True, cwd=str(_REPO_ROOT), timeout=10,
                     )
                     if result.stdout.strip():
                         for line in result.stdout.strip().split("\n"):
@@ -811,7 +782,7 @@ def register(mcp):
                                 commit_hash = line.strip().split()[0]
                                 files_result = subprocess.run(
                                     ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", commit_hash, "--", loader_path],
-                                    capture_output=True, text=True, cwd=str(_get_repo_root()), timeout=5,
+                                    capture_output=True, text=True, cwd=str(_REPO_ROOT), timeout=5,
                                 )
                                 py_files = [f for f in files_result.stdout.strip().split("\n") if f.endswith(".py")]
                                 if py_files:
@@ -831,7 +802,7 @@ def register(mcp):
                 try:
                     result = subprocess.run(
                         ["git", "log", "--oneline", "--after", date_before, "--before", date_after, "--", path],
-                        capture_output=True, text=True, cwd=str(_get_repo_root()), timeout=10,
+                        capture_output=True, text=True, cwd=str(_REPO_ROOT), timeout=10,
                     )
                     if result.stdout.strip():
                         for line in result.stdout.strip().split("\n"):
@@ -859,7 +830,7 @@ def register(mcp):
                 try:
                     result = subprocess.run(
                         ["git", "log", "--oneline", "--after", date_before, "--before", date_after, "--", path],
-                        capture_output=True, text=True, cwd=str(_get_repo_root()), timeout=10,
+                        capture_output=True, text=True, cwd=str(_REPO_ROOT), timeout=10,
                     )
                     if result.stdout.strip():
                         for line in result.stdout.strip().split("\n"):
@@ -1042,7 +1013,7 @@ def register(mcp):
                 try:
                     result = subprocess.run(
                         ["find", f"src/python/events_mart/jobs/{pipeline_folder}", "-name", "*.py", "-type", "f"],
-                        capture_output=True, text=True, cwd=str(_get_repo_root()), timeout=5,
+                        capture_output=True, text=True, cwd=str(_REPO_ROOT), timeout=5,
                     )
                     job_files = [f.strip() for f in result.stdout.strip().split("\n") if f.strip()]
                 except Exception:
@@ -1053,7 +1024,7 @@ def register(mcp):
                         try:
                             result = subprocess.run(
                                 ["git", "log", "--oneline", "-5", "-S", col, "--", jf],
-                                capture_output=True, text=True, cwd=str(_get_repo_root()), timeout=10,
+                                capture_output=True, text=True, cwd=str(_REPO_ROOT), timeout=10,
                             )
                             if result.stdout.strip():
                                 for line in result.stdout.strip().split("\n"):
@@ -1096,7 +1067,7 @@ def register(mcp):
                         try:
                             date_result = subprocess.run(
                                 ["git", "log", "-1", "--format=%ci", commit_hash],
-                                capture_output=True, text=True, cwd=str(_get_repo_root()), timeout=5,
+                                capture_output=True, text=True, cwd=str(_REPO_ROOT), timeout=5,
                             )
                             commit_date = date_result.stdout.strip()[:10]
                             # Only count if within 60 days of inflection
@@ -1198,20 +1169,20 @@ def _find_pipeline_folder(source_table):
     table_short = parts[-1] if parts else source_table
 
     # Direct match
-    candidate = _get_repo_root() / "src" / "projects" / table_short
+    candidate = _REPO_ROOT / "src" / "projects" / table_short
     if candidate.is_dir():
         return table_short
 
     # Try with _loader suffix stripped
     if table_short.endswith("_loader"):
         stripped = table_short[:-7]
-        candidate = _get_repo_root() / "src" / "projects" / stripped
+        candidate = _REPO_ROOT / "src" / "projects" / stripped
         if candidate.is_dir():
             return stripped
 
     # Fuzzy: find best substring match
     import os
-    projects_dir = _get_repo_root() / "src" / "projects"
+    projects_dir = _REPO_ROOT / "src" / "projects"
     if projects_dir.is_dir():
         folders = [f for f in os.listdir(projects_dir) if (projects_dir / f).is_dir()]
         # Exact substring match
@@ -1229,7 +1200,7 @@ def _get_upstream_tables(pipeline_folder):
     if not pipeline_folder:
         return []
 
-    project_py = _get_repo_root() / "src" / "projects" / pipeline_folder / "azkaban" / "project.py"
+    project_py = _REPO_ROOT / "src" / "projects" / pipeline_folder / "azkaban" / "project.py"
     if not project_py.exists():
         return []
 

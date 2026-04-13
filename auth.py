@@ -130,7 +130,7 @@ def cmdash_url(env="dev"):
 # ---------------------------------------------------------------------------
 # Trino
 # ---------------------------------------------------------------------------
-def trino_connection(dev=True):
+def trino_connection(dev=True, cluster=None):
     """Create a Trino DBAPI connection.
 
     The ``trino`` package is imported lazily so the server can start even
@@ -138,11 +138,14 @@ def trino_connection(dev=True):
     """
     import trino as trino_lib
 
-    host = (
-        os.environ.get("DEV_PRESTO_HOST", os.environ.get("PRESTO_HOST", ""))
-        if dev
-        else os.environ.get("PRESTO_HOST", "")
-    )
+    if cluster == "preprod":
+        host = os.environ.get("PRESTO_HOST_PREPROD", "")
+    elif cluster == "prod":
+        host = os.environ.get("PRESTO_HOST_PROD", os.environ.get("PRESTO_HOST", ""))
+    elif not dev:
+        host = os.environ.get("PRESTO_HOST_PROD", os.environ.get("PRESTO_HOST", ""))
+    else:
+        host = os.environ.get("DEV_PRESTO_HOST", os.environ.get("PRESTO_HOST", ""))
     password = os.environ.get("PRESTO_PASSWORD", "")
     port = int(os.environ.get("PRESTO_PORT", "443"))
     catalog = os.environ.get("PRESTO_CATALOG", "")

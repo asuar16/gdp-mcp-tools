@@ -192,27 +192,27 @@ def register(mcp):
     @mcp.tool()
     def jira_create_issue(
         summary: str,
+        description: str,
+        epic: str,
         project: str = "",
         issue_type: str = "Task",
-        description: str = "",
         priority: str = "",
         assignee: str = "",
         reporter: str = "",
         labels: str = "",
-        epic: str = "",
     ) -> str:
         """Create a new Jira issue.
 
         Args:
             summary: Issue title/summary (required)
+            description: Issue description (required for OED project)
+            epic: Epic key (required for OED project, e.g. "OED-6405")
             project: Project key (default: from JIRA_PROJECTS_FILTER env var)
-            issue_type: Issue type - "Task", "Bug", "Story", "Epic" (default: Task)
-            description: Issue description
+            issue_type: Issue type - "Task", "Bug", "Story", "Test", "Chore", "Epic" (default: Task)
             priority: Priority - "Highest", "High", "Medium", "Low", "Lowest"
             assignee: Assignee email or name (resolved to accountId)
             reporter: Reporter email or name (resolved to accountId)
             labels: Comma-separated labels (e.g. "backend,bug-fix")
-            epic: Epic key to link this issue to (e.g. "OED-6089")
         """
         proj = project or auth.jira_default_project()
         if not proj:
@@ -224,8 +224,9 @@ def register(mcp):
             "issuetype": {"name": issue_type},
         }
 
-        if description:
-            fields["description"] = description
+        fields["description"] = description
+        if epic:
+            fields["customfield_10014"] = epic
         if priority:
             fields["priority"] = {"name": priority}
         if assignee:
@@ -242,8 +243,6 @@ def register(mcp):
                 return json.dumps({"error": f"Could not resolve reporter: {reporter}"})
         if labels:
             fields["labels"] = [l.strip() for l in labels.split(",") if l.strip()]
-        if epic:
-            fields["customfield_10014"] = epic
 
         try:
             data = _api("post", "/issue", json={"fields": fields})

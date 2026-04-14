@@ -64,6 +64,9 @@ import slack_tools  # noqa: E402
 import spark_tools  # noqa: E402
 import sync_plan_tools  # noqa: E402
 import pv_tools  # noqa: E402
+import redash_tools  # noqa: E402
+import github_tools  # noqa: E402
+import s3_tools  # noqa: E402
 
 jenkins_tools.register(mcp)
 scheduler_tools.register(mcp)
@@ -77,6 +80,9 @@ slack_tools.register(mcp)
 spark_tools.register(mcp)
 sync_plan_tools.register(mcp)
 pv_tools.register(mcp)
+redash_tools.register(mcp)
+github_tools.register(mcp)
+s3_tools.register(mcp)
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

@@ -67,6 +67,7 @@ import pv_tools  # noqa: E402
 import redash_tools  # noqa: E402
 import github_tools  # noqa: E402
 import s3_tools  # noqa: E402
+import backfill_tools  # noqa: E402
 
 jenkins_tools.register(mcp)
 scheduler_tools.register(mcp)
@@ -83,6 +84,7 @@ pv_tools.register(mcp)
 redash_tools.register(mcp)
 github_tools.register(mcp)
 s3_tools.register(mcp)
+backfill_tools.register(mcp)
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

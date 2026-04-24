@@ -72,6 +72,7 @@ import s3_tools  # noqa: E402
 import backfill_tools  # noqa: E402
 import google_doc_tools  # noqa: E402
 import datahub_tools  # noqa: E402
+import gemini_tools  # noqa: E402
 
 jenkins_tools.register(mcp)
 scheduler_tools.register(mcp)
@@ -91,6 +92,7 @@ s3_tools.register(mcp)
 backfill_tools.register(mcp)
 google_doc_tools.register(mcp)
 datahub_tools.register(mcp)
+gemini_tools.register(mcp)
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

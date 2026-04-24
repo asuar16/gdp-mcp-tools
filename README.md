@@ -68,15 +68,66 @@ All tools require VPN. Connect first, then use any MCP client.
 
 ## Using from Any Repo
 
-The MCP server runs from its own directory. You reference it via **absolute paths** in `.mcp.json`:
+Already have gdp-mcp-tools set up? Here's how to add it to a new repo in 1 minute:
+
+### Step 1: Get your paths
 
 ```bash
-# Find your absolute paths
+cd ~/path/to/gdp-mcp-tools
 echo "Python: $(pwd)/venv/bin/python"
 echo "Server: $(pwd)/src/server.py"
 ```
 
-Then in any other project's `.mcp.json`:
+### Step 2: Create `.mcp.json` in your new repo
+
+```bash
+cd ~/path/to/your-new-repo
+
+cat > .mcp.json << 'EOF'
+{
+  "mcpServers": {
+    "gdp-tools": {
+      "type": "stdio",
+      "command": "/absolute/path/to/gdp-mcp-tools/venv/bin/python",
+      "args": ["/absolute/path/to/gdp-mcp-tools/src/server.py"]
+    }
+  }
+}
+EOF
+```
+
+Replace the paths with your actual paths from Step 1.
+
+### Step 3: Start your AI coding session
+
+**Claude Code:**
+```bash
+cd ~/path/to/your-new-repo
+claude
+# GDP tools will auto-connect. Try: "check vpn status"
+```
+
+**VS Code / Cursor:**
+```
+Open the repo folder -> MCP tools appear in Copilot/AI sidebar
+```
+
+**Gemini CLI:**
+```bash
+cd ~/path/to/your-new-repo
+gemini
+# Tools auto-load from .gemini/settings.json
+```
+
+**Antigravity:**
+```
+Open project -> Tools auto-load from mcp_config.json
+```
+
+That's it. The `.mcp.json` tells any MCP client where to find the server. No installation needed in the new repo -- everything runs from `gdp-mcp-tools/`.
+
+### Example: Adding to events-mart, ods_data, or any repo
+
 ```json
 {
   "mcpServers": {

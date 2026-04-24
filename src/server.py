@@ -21,11 +21,13 @@ from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
 # Load .env from the same directory as this script
+# Load .env from the same directory as server.py (src/)
 _env_path = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=_env_path)
 
-# Ensure this package directory is importable for sibling module imports
+# Ensure src/ and src/tools/ are importable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent / "tools"))
 
 # All logging goes to stderr (stdout is reserved for MCP JSON-RPC)
 logging.basicConfig(
@@ -68,6 +70,8 @@ import redash_tools  # noqa: E402
 import github_tools  # noqa: E402
 import s3_tools  # noqa: E402
 import backfill_tools  # noqa: E402
+import google_doc_tools  # noqa: E402
+import datahub_tools  # noqa: E402
 
 jenkins_tools.register(mcp)
 scheduler_tools.register(mcp)
@@ -85,6 +89,8 @@ redash_tools.register(mcp)
 github_tools.register(mcp)
 s3_tools.register(mcp)
 backfill_tools.register(mcp)
+google_doc_tools.register(mcp)
+datahub_tools.register(mcp)
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

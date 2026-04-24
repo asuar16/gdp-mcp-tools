@@ -96,8 +96,8 @@ def _parse_slack_url(url):
     """Parse a Slack message URL into channel_id and message_ts.
 
     Supports formats:
-    - https://grubhub.slack.com/archives/C735U9F0C/p1775066684867499
-    - https://grubhub.slack.com/archives/C735U9F0C/p1775066684867499?thread_ts=...
+    - https://your-workspace.slack.com/archives/CABCDEF123/p1775066684867499
+    - https://your-workspace.slack.com/archives/CABCDEF123/p1775066684867499?thread_ts=...
     """
     match = re.search(r"/archives/([A-Z0-9]+)/p(\d{10})(\d{6})", url)
     if not match:
@@ -196,8 +196,8 @@ def register(mcp):
         Provide either a Slack message URL, or both channel and ts.
 
         Args:
-            url: Slack message URL (e.g. https://grubhub.slack.com/archives/C735U9F0C/p1775066684867499)
-            channel: Channel ID (e.g. C735U9F0C). Used if url is not provided.
+            url: Slack message URL (e.g. https://your-workspace.slack.com/archives/CABCDEF123/p1775066684867499)
+            channel: Channel ID (e.g. CABCDEF123). Used if url is not provided.
             ts: Message timestamp (e.g. 1775066684.867499). Used if url is not provided.
         """
         config = _get_config()
